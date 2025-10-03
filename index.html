@@ -3,73 +3,61 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Mochila 0/1 - Interativo Avaliável</title>
+<title>Mochila 0/1 - Interativo Manual</title>
 <style>
-body{font-family:Inter, system-ui, -apple-system,'Segoe UI', Roboto,'Helvetica Neue', Arial;padding:18px;background:#f7f9fb;color:#111}
-h1{font-size:20px;margin-bottom:12px}
+body{font-family:Arial, sans-serif;padding:18px;background:#f7f9fb;color:#111}
+h1{font-size:22px;margin-bottom:12px}
 .input-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-input[type="number"], input[type="text"]{padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;width:80px}
-button{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;background:#2563eb;color:white}
+input[type="number"]{padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;width:60px;text-align:right}
+button{padding:8px 12px;border-radius:6px;border:none;cursor:pointer;background:#2563eb;color:white}
 button.secondary{background:#64748b}
-table{border-collapse:collapse;background:white;box-shadow:0 2px 6px rgba(2,6,23,0.06)}
-th,td{border:1px solid #e6eef8;padding:8px;text-align:right;min-width:40px}
-.status{padding:8px;border-radius:8px;margin-top:10px}
+table{border-collapse:collapse;margin-top:12px}
+th,td{border:1px solid #999;padding:6px;text-align:right}
+.status{padding:8px;border-radius:6px;margin-top:10px}
 .ok{background:#dcfce7;color:#065f46}
 .error{background:#fee2e2;color:#9b1c1c}
-.highlight{background:#fef3c7}
-.small{font-size:13px}
-.answer-row{margin-top:12px}
 </style>
 </head>
 <body>
-<h1>Mochila 0/1 - Programação Dinâmica (Interativo Avaliável)</h1>
+
+<h1>Mochila 0/1 - Passo a Passo Manual</h1>
 
 <div class="input-row">
-<label class="small">Itens (n):</label>
+<label>Itens (n):</label>
 <input id="nItems" type="number" value="3" min="1"/>
-<label class="small">Capacidade (W):</label>
+<label>Capacidade (W):</label>
 <input id="capacity" type="number" value="5" min="1"/>
-<button id="build">Gerar Formulário</button>
+<button id="build">Gerar Itens</button>
 </div>
 
 <div id="formArea"></div>
-
-<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap">
-<button id="toTable">Criar Tabela DP</button>
-<button id="autoSolve" class="secondary">Resolver automaticamente</button>
-<button id="reset" class="secondary">Reset</button>
-</div>
-
-<div id="tableArea" style="margin-top:12px; overflow:auto"></div>
-
-<div class="answer-row" id="answerArea"></div>
-
-<div id="feedback" class="status small">Preencha os itens e clique em Criar Tabela DP.</div>
-<div id="solution" class="status small"></div>
+<div id="tableArea"></div>
+<div id="feedback" class="status">Preencha os pesos e valores e clique em Criar Tabela DP.</div>
 
 <script>
-// --- Utilities ---
-function round(x){return Math.round(x*1000)/1000}
-function clone(x){return JSON.parse(JSON.stringify(x))}
+// --- Dados ---
+let problem=null, optimalDP=null;
 
-// --- Problema e DP ---
-let problem=null, DP=null, solutionHistory=[], currentStep=0, optimalItems=[];
-
+// --- Gerar inputs de itens ---
 function renderForm(){
   const n = +document.getElementById('nItems').value;
   const form = document.getElementById('formArea');
-  form.innerHTML='';
-  const header = document.createElement('div'); header.innerHTML='<strong>Itens: peso e valor</strong>'; form.appendChild(header);
+  form.innerHTML='<strong>Insira pesos e valores:</strong><br/>';
   for(let i=0;i<n;i++){
-    const row = document.createElement('div'); row.className='input-row';
-    row.innerHTML=`<label class="small">Item ${i+1}:</label>
-      Peso: <input type="number" step="1" value="1" id="w_${i}"/>
-      Valor: <input type="number" step="1" value="1" id="v_${i}"/>`;
+    const row = document.createElement('div');
+    row.className='input-row';
+    row.innerHTML = `Item ${i+1}: Peso <input type="number" id="w_${i}" value="1"/> Valor <input type="number" id="v_${i}" value="1"/>`;
     form.appendChild(row);
   }
-  document.getElementById('answerArea').innerHTML='';
+  const btn = document.createElement('button');
+  btn.innerText='Criar Tabela DP';
+  btn.addEventListener('click', buildTable);
+  form.appendChild(btn);
+  document.getElementById('tableArea').innerHTML='';
+  document.getElementById('feedback').innerText='Agora você pode preencher a tabela DP manualmente.';
 }
 
+// --- Ler problema ---
 function readProblem(){
   const n = +document.getElementById('nItems').value;
   const W = +document.getElementById('capacity').value;
@@ -81,159 +69,92 @@ function readProblem(){
   return {n,W,w,v};
 }
 
-// --- Construir tabela DP e histórico ---
+// --- Criar tabela DP vazia para o aluno preencher ---
 function buildTable(){
   problem = readProblem();
-  const {n,W,w,v}=problem;
-  DP = Array.from({length:n+1},()=>Array(W+1).fill(0));
-  solutionHistory = [];
+  const {n,W}=problem;
+  optimalDP = Array.from({length:n+1},()=>Array(W+1).fill(0));
+  
+  // calcular solução ótima para verificação
+  const {w,v} = problem;
   for(let i=1;i<=n;i++){
     for(let j=0;j<=W;j++){
       if(w[i-1]<=j){
-        DP[i][j]=Math.max(DP[i-1][j], DP[i-1][j-w[i-1]]+v[i-1]);
-      } else DP[i][j]=DP[i-1][j];
+        optimalDP[i][j]=Math.max(optimalDP[i-1][j], optimalDP[i-1][j-w[i-1]]+v[i-1]);
+      } else {
+        optimalDP[i][j]=optimalDP[i-1][j];
+      }
     }
-    solutionHistory.push(DP.map(r=>r.slice()));
   }
-  currentStep=0;
-  renderTable(DP);
-  renderControls();
-  computeOptimalItems();
-  renderAnswerInputs();
-  showSolution();
-  document.getElementById('feedback').innerText='Tabela DP criada. Faça passos, resolva automaticamente e tente enviar sua resposta.';
+
+  renderStudentTable();
 }
 
-// --- Renderizar tabela ---
-function renderTable(table){
+// --- Renderizar tabela para o aluno preencher ---
+function renderStudentTable(){
+  const {n,W} = problem;
   const container = document.getElementById('tableArea');
-  container.innerHTML='';
-  const n = table.length-1;
-  const W = table[0].length-1;
+  container.innerHTML='<strong>Preencha a tabela DP manualmente:</strong>';
   const tbl = document.createElement('table');
   const thead = document.createElement('thead');
   let htr = document.createElement('tr');
   htr.appendChild(document.createElement('th'));
-  for(let j=0;j<=W;j++){ const th=document.createElement('th'); th.innerText=j; htr.appendChild(th); }
-  thead.appendChild(htr); tbl.appendChild(thead);
-  const tbody=document.createElement('tbody');
+  for(let j=0;j<=W;j++){
+    const th = document.createElement('th'); th.innerText=j;
+    htr.appendChild(th);
+  }
+  thead.appendChild(htr);
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
   for(let i=0;i<=n;i++){
-    const tr=document.createElement('tr');
-    const td=document.createElement('td'); td.innerText=i; tr.appendChild(td);
+    const tr = document.createElement('tr');
+    const td0 = document.createElement('td'); td0.innerText=i; tr.appendChild(td0);
     for(let j=0;j<=W;j++){
-      const td2=document.createElement('td'); td2.innerText=table[i][j];
-      if(i>0 && table[i][j] != solutionHistory[i-1][j]) td2.className='highlight';
-      tr.appendChild(td2);
+      const td = document.createElement('td');
+      const input = document.createElement('input');
+      input.type='number'; input.style.width='60px'; input.dataset.i=i; input.dataset.j=j;
+      td.appendChild(input);
+      tr.appendChild(td);
     }
     tbody.appendChild(tr);
   }
-  tbl.appendChild(tbody); container.appendChild(tbl);
+  tbl.appendChild(tbody);
+
+  container.appendChild(tbl);
+
+  const btnCheck = document.createElement('button');
+  btnCheck.innerText='Verificar Tabela';
+  btnCheck.style.marginTop='10px';
+  btnCheck.addEventListener('click', checkTable);
+  container.appendChild(btnCheck);
 }
 
-// --- Computar solução ótima ---
-function computeOptimalItems(){
-  const {n,W,w,v}=problem;
-  let res=[], j=W;
-  for(let i=n;i>0;i--){
-    if(DP[i][j]!=DP[i-1][j]){ res.push(i-1); j-=w[i-1]; }
-  }
-  res.reverse();
-  optimalItems=res;
-}
-
-// --- Mostrar solução ---
-function showSolution(){
-  const {n,W,w,v}=problem;
-  const solDiv=document.getElementById('solution');
-  if(!DP) return;
-  solDiv.innerHTML='Valor máximo: '+DP[problem.n][problem.W];
-}
-
-// --- Renderizar inputs de resposta ---
-function renderAnswerInputs(){
-  const {n}=problem;
-  const area = document.getElementById('answerArea');
-  area.innerHTML='<strong>Selecione os itens que você acredita fazer parte da solução ótima:</strong><br/>';
-  for(let i=0;i<n;i++){
-    const label = document.createElement('label');
-    label.style.marginRight='12px';
-    label.innerHTML = `<input type="checkbox" name="answer" value="${i}"> Item ${i+1}`;
-    area.appendChild(label);
-  }
-  const btn = document.createElement('button');
-  btn.innerText='Enviar Resposta';
-  btn.style.marginLeft='12px';
-  btn.addEventListener('click', checkAnswer);
-  area.appendChild(btn);
-}
-
-// --- Verificar resposta ---
-function checkAnswer(){
-  const selected = Array.from(document.querySelectorAll('input[name="answer"]:checked')).map(el => +el.value);
-  const correct = optimalItems;
-  const isCorrect = JSON.stringify(selected.sort()) === JSON.stringify(correct.sort());
-  const resDiv = document.getElementById('feedback');
-  if(isCorrect){
-    resDiv.innerText = `✅ Correto! Nota: 1\nItens selecionados: ${selected.map(i=>'Item '+(i+1)).join(', ')}`;
-    resDiv.className='status ok';
+// --- Verificar tabela do aluno ---
+function checkTable(){
+  const inputs = document.querySelectorAll('#tableArea input[type="number"]');
+  let correct = true;
+  inputs.forEach(inp=>{
+    const i = +inp.dataset.i;
+    const j = +inp.dataset.j;
+    const val = +inp.value;
+    if(val !== optimalDP[i][j]) correct = false;
+  });
+  const fb = document.getElementById('feedback');
+  if(correct){
+    fb.innerText='✅ Parabéns! Tabela correta.';
+    fb.className='status ok';
   } else {
-    resDiv.innerText = `❌ Incorreto! Nota: 0\nItens selecionados: ${selected.map(i=>'Item '+(i+1)).join(', ')}\nSolução ótima: ${correct.map(i=>'Item '+(i+1)).join(', ')}`;
-    resDiv.className='status error';
+    fb.innerText='❌ Alguns valores estão incorretos. Verifique e tente novamente.';
+    fb.className='status error';
   }
-}
-
-// --- Controles de passo a passo ---
-function renderControls(){
-  const div = document.getElementById('controls');
-  div.innerHTML='';
-  const btnPrev = document.createElement('button'); btnPrev.className='secondary'; btnPrev.innerText='◀️ Passo anterior';
-  const btnNext = document.createElement('button'); btnNext.innerText='Passo ▶️';
-  btnPrev.addEventListener('click', stepBack);
-  btnNext.addEventListener('click', stepForward);
-  div.appendChild(btnPrev); div.appendChild(btnNext);
-}
-
-function stepForward(){
-  if(currentStep >= solutionHistory.length){ document.getElementById('feedback').innerText='Fim dos passos.'; return; }
-  DP = solutionHistory[currentStep].map(r=>r.slice());
-  renderTable(DP);
-  currentStep++;
-  document.getElementById('feedback').innerText=`Passo ${currentStep} aplicado.`;
-  showSolution();
-}
-
-function stepBack(){
-  if(currentStep<=1){ document.getElementById('feedback').innerText='Início da tabela.'; return; }
-  currentStep-=2;
-  stepForward();
-}
-
-// --- Resolver automaticamente ---
-function autoSolve(){
-  DP = solutionHistory[solutionHistory.length-1].map(r=>r.slice());
-  currentStep=solutionHistory.length;
-  renderTable(DP);
-  showSolution();
-  document.getElementById('feedback').innerText='Tabela resolvida automaticamente.';
-}
-
-// --- Reset ---
-function resetAll(){
-  document.getElementById('formArea').innerHTML='';
-  document.getElementById('tableArea').innerHTML='';
-  document.getElementById('controls').innerHTML='';
-  document.getElementById('answerArea').innerHTML='';
-  document.getElementById('feedback').innerText='Preencha os itens e clique em Criar Tabela DP.';
-  document.getElementById('solution').innerText='';
-  DP=null; problem=null; solutionHistory=[]; currentStep=0; optimalItems=[];
 }
 
 // --- Eventos ---
 document.getElementById('build').addEventListener('click', renderForm);
-document.getElementById('toTable').addEventListener('click', buildTable);
-document.getElementById('autoSolve').addEventListener('click', autoSolve);
-document.getElementById('reset').addEventListener('click', resetAll);
 
 </script>
+
 </body>
 </html>
+
